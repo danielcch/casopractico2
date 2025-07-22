@@ -2,7 +2,7 @@
 variable "location" {
   type        = string
   description = "Region de Azure donde se desplegaran los recursos"
-  default     = "westeurope"
+  default     = "northeurope"
 }
 
 # Nombre del grupo de recursos
