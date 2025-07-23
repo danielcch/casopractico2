@@ -1,0 +1,47 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      securityContext:
+        fsGroup: 1001
+      containers:
+        - name: backend
+          image: cp2acrdcch.azurecr.io/caso2/backend:casopractico2
+          ports:
+            - containerPort: 6379
+              name: redis
+          env:
+            - name: ALLOW_EMPTY_PASSWORD
+              value: "true"
+          volumeMounts:
+            - name: redis-data
+              mountPath: /bitnami/redis
+          securityContext:
+            runAsUser: 1001
+      volumes:
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: redis-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: default
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: 6379

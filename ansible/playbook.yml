@@ -1,0 +1,156 @@
+---
+- hosts: localhost
+  gather_facts: no
+  vars:
+    acr_login_server: cp2AcrDcch.azurecr.io
+    acr_admin_username: cp2AcrDcch
+    acr_admin_password: "FHaUtwWXIX3VesC5Z740ceuls+b6AZ1WfXMuCckZKD+ACRA8Geih"
+  tasks:
+    - name: Login to ACR with Podman locally
+      containers.podman.podman_login:
+        registry: "{{ acr_login_server }}"
+        username: "{{ acr_admin_username }}"
+        password: "{{ acr_admin_password }}"
+
+    - name: Pull required images from DockerHub
+      containers.podman.podman_image:
+        name: "{{ item.name }}"
+        state: present
+        arch: amd64
+      loop:
+        - name: docker.io/library/nginx:latest
+        - name: docker.io/fernandezsalazarnieve/azure-vote-front:v1
+        - name: docker.io/bitnami/redis:6.0.8
+      become: no
+    
+    - name: Tag image for ACR
+      containers.podman.podman_tag:
+        image: "{{ item.name }}"
+        target_names:
+          - "{{ acr_login_server }}/{{ item.opt }}/{{ item.id }}:{{ item.tag }}"
+      loop:
+        - {name: docker.io/library/nginx:latest,opt: caso1, id: nginx, tag: casopractico2}
+        - {name: docker.io/fernandezsalazarnieve/azure-vote-front:v1,opt: caso2, id: front,tag: casopractico2}
+        - {name: docker.io/bitnami/redis:6.0.8,opt: caso2, id: backend, tag: casopractico2}
+      become: no
+
+
+    - name: Push image to ACR
+      containers.podman.podman_image:
+        name: "{{ acr_login_server }}/{{ item.opt }}/{{ item.id }}:{{ item.tag }}"
+        push: true
+        username: "{{ acr_admin_username }}"
+        password: "{{ acr_admin_password }}"
+      loop:
+        - {name: docker.io/library/nginx:latest,opt: caso1, id: nginx, tag: casopractico2}
+        - {name: docker.io/fernandezsalazarnieve/azure-vote-front:v1,opt: caso2, id: front,tag: casopractico2}
+        - {name: docker.io/bitnami/redis:6.0.8,opt: caso2, id: backend, tag: casopractico2}
+      become: no
+
+
+- hosts: [cp2Caso1]
+  become: yes
+  vars:
+    acr_login_server: cp2AcrDcch.azurecr.io
+    acr_admin_username: cp2AcrDcch
+    acr_admin_password: "FHaUtwWXIX3VesC5Z740ceuls+b6AZ1WfXMuCckZKD+ACRA8Geih"
+    user_vm: adminuser
+  tasks:
+    - name: Install dependencies for Podman repo
+      ansible.builtin.apt:
+        name:
+          - software-properties-common
+          - uidmap
+        state: present
+
+    - name: Add repo GPG key
+      ansible.builtin.apt_key:
+        url: "https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_22.04/Release.key"
+        state: present
+
+    - name: Add Podman repo
+      ansible.builtin.apt_repository:
+        repo: "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_22.04/ /"
+        state: present
+        filename: "devel:kubic:libcontainers:stable"
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Install Podman
+      ansible.builtin.apt:
+        name: podman
+        state: present
+
+    - name: Login to ACR from the VM (user context)
+      containers.podman.podman_login:
+        registry: "{{ acr_login_server }}"
+        username: "{{ acr_admin_username }}"
+        password: "{{ acr_admin_password }}"
+      become: no
+
+    - name: Pull nginx image from ACR (guaranteed amd64)
+      containers.podman.podman_image:
+        name: "{{ acr_login_server }}/caso1/nginx:casopractico2"
+        state: present
+      become: no
+
+    - name: Create custom index.html
+      ansible.builtin.copy:
+        dest: "/home/{{ user_vm }}/index.html"
+        content: |
+          <html>
+          <head><title>Nginx Caso 1</title></head>
+          <body><h1>Hola desde el Caso Practico 2 con Podman</h1></body>
+          </html>
+        owner: "{{ user_vm }}"
+        mode: "0644"
+
+    - name: Remove nginx container if exists
+      containers.podman.podman_container:
+        name: nginx-web
+        state: absent
+      ignore_errors: yes
+      become: no
+
+    - name: Run nginx container
+      containers.podman.podman_container:
+        name: nginx-web
+        image: "{{ acr_login_server }}/caso1/nginx:casopractico2"
+        state: started
+        recreate: yes
+        restart_policy: always
+        detach: yes
+        ports:
+          - "8080:80"
+        volumes:
+          - "/home/{{ user_vm }}/index.html:/usr/share/nginx/html/index.html:ro"
+        command: ["nginx", "-g", "daemon off;"]
+      become: no
+
+- hosts: localhost
+  connection: local
+  gather_facts: no
+  vars:
+    aks_resource_group: "{{ lookup('pipe', 'terraform -chdir=../terraform output -raw aks_resource_group') }}"
+    aks_cluster_name: "{{ lookup('pipe', 'terraform -chdir=../terraform output -raw aks_cluster_name') }}"
+    aks_kubeconfig: "{{ lookup('pipe', 'terraform -chdir=../terraform output -raw aks_kubeconfig') }}"
+  tasks:
+    - name: Guardar kubeconfig generado por Terraform
+      copy:
+        content: "{{ aks_kubeconfig }}"
+        dest: "~/.kube/config"
+        mode: 0600
+
+    - name: Aplicar todos los manifiestos en AKS
+      kubernetes.core.k8s:
+        state: present
+        src: "{{ item }}"
+        kubeconfig: "~/.kube/config"
+        namespace: default
+      with_fileglob:
+        - "../k8s/persistent-volumes/*.yml"
+        - "../k8s/deployments/*.yml"
+        
+
