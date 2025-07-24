@@ -1,10 +1,6 @@
 ---
 - hosts: localhost
   gather_facts: no
-  vars:
-    acr_login_server: cp2AcrDcch.azurecr.io
-    acr_admin_username: cp2AcrDcch
-    acr_admin_password: "FHaUtwWXIX3VesC5Z740ceuls+b6AZ1WfXMuCckZKD+ACRA8Geih"
   tasks:
     - name: Login to ACR with Podman locally
       containers.podman.podman_login:
@@ -18,9 +14,9 @@
         state: present
         arch: amd64
       loop:
-        - name: docker.io/library/nginx:latest
-        - name: docker.io/fernandezsalazarnieve/azure-vote-front:v1
-        - name: docker.io/bitnami/redis:6.0.8
+        - name: "{{ image_nginx }}"
+        - name: "{{ image_front }}"
+        - name: "{{ image_back }}"
       become: no
     
     - name: Tag image for ACR
@@ -29,9 +25,9 @@
         target_names:
           - "{{ acr_login_server }}/{{ item.opt }}/{{ item.id }}:{{ item.tag }}"
       loop:
-        - {name: docker.io/library/nginx:latest,opt: caso1, id: nginx, tag: casopractico2}
-        - {name: docker.io/fernandezsalazarnieve/azure-vote-front:v1,opt: caso2, id: front,tag: casopractico2}
-        - {name: docker.io/bitnami/redis:6.0.8,opt: caso2, id: backend, tag: casopractico2}
+        - {name: "{{ image_nginx }}",opt: caso1, id: nginx, tag: "{{ tag }}"}
+        - {name: "{{ image_front }}",opt: caso2, id: front,tag: "{{ tag }}"}
+        - {name: "{{ image_front }}",opt: caso2, id: backend, tag: "{{ tag }}"}
       become: no
 
 
@@ -42,19 +38,14 @@
         username: "{{ acr_admin_username }}"
         password: "{{ acr_admin_password }}"
       loop:
-        - {name: docker.io/library/nginx:latest,opt: caso1, id: nginx, tag: casopractico2}
-        - {name: docker.io/fernandezsalazarnieve/azure-vote-front:v1,opt: caso2, id: front,tag: casopractico2}
-        - {name: docker.io/bitnami/redis:6.0.8,opt: caso2, id: backend, tag: casopractico2}
+        - {name: "{{ image_nginx }}", opt: caso1, id: nginx, tag: "{{ tag }}"}
+        - {name: "{{ image_front }}", opt: caso2, id: front, tag: "{{ tag }}"}
+        - {name: "{{ image_back }}", opt: caso2, id: backend, tag: "{{ tag }}"}
       become: no
 
 
 - hosts: [cp2Caso1]
   become: yes
-  vars:
-    acr_login_server: cp2AcrDcch.azurecr.io
-    acr_admin_username: cp2AcrDcch
-    acr_admin_password: "FHaUtwWXIX3VesC5Z740ceuls+b6AZ1WfXMuCckZKD+ACRA8Geih"
-    user_vm: adminuser
   tasks:
     - name: Install dependencies for Podman repo
       ansible.builtin.apt:
@@ -129,6 +120,28 @@
         command: ["nginx", "-g", "daemon off;"]
       become: no
 
+
+    - name: Crear archivo systemd para nginx-web
+      ansible.builtin.template:
+        src: nginx-web.service.j2
+        dest: /etc/systemd/system/nginx-web.service
+        owner: root
+        group: root
+        mode: 0644
+      become: yes
+
+    - name: Recargar systemd para detectar nuevo servicio
+      ansible.builtin.systemd:
+        daemon_reload: yes
+      become: yes
+
+    - name: Activar y arrancar nginx-web como servicio
+      ansible.builtin.systemd:
+        name: nginx-web.service
+        enabled: yes
+        state: restarted
+      become: yes
+
 - hosts: localhost
   connection: local
   gather_facts: no
@@ -153,4 +166,3 @@
         - "../k8s/persistent-volumes/*.yml"
         - "../k8s/deployments/*.yml"
         
-

@@ -1,0 +1,13 @@
+[Unit]
+Description=Nginx web container (CP2)
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/podman start -a nginx-web
+ExecStop=/usr/bin/podman stop -t 10 nginx-web
+Restart=always
+RestartSec=10
+TimeoutStopSec=70
+
+[Install]
+WantedBy=multi-user.target

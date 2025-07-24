@@ -1,0 +1,8 @@
+acr_login_server: "{{ lookup('pipe', 'terraform -chdir=../terraform output -raw acr_login_server') }}"
+acr_admin_username: "{{ lookup('pipe', 'terraform -chdir=../terraform output -raw acr_admin_username') }}"
+acr_admin_password: "{{ lookup('pipe', 'terraform -chdir=../terraform output -raw acr_admin_password') }}"
+user_vm: "{{ lookup('pipe', 'terraform -chdir=../terraform output -raw vm_admin_username') }}"
+image_nginx: "docker.io/library/nginx:latest"
+image_front: "docker.io/fernandezsalazarnieve/azure-vote-front:v1"
+image_back: "docker.io/bitnami/redis:6.0.8"
+tag: "casopractico2"
