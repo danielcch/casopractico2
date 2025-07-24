@@ -1,3 +1,34 @@
+# acr_login_server: Dirección del servidor de login del Azure Container Registry (ACR)
+output "acr_login_server" {
+  description = "Dirección del servidor de login del Azure Container Registry (ACR)."
+  value       = azurerm_container_registry.acr.login_server
+}
+
+# Nombre de usuario administrador del ACR
+output "acr_admin_username" {
+  description = "Nombre de usuario administrador del ACR."
+  value       = azurerm_container_registry.acr.admin_username
+}
+
+# Contraseña del usuario administrador del ACR
+output "acr_admin_password" {
+  description = "Contraseña del usuario administrador del ACR. Este valor es sensible."
+  value       = azurerm_container_registry.acr.admin_password
+  sensitive   = true
+}
+
+# Nombre de usuario administrador de la VM
+output "vm_admin_username" {
+  description = "Nombre de usuario administrador de la maquina virtual"
+  value       = azurerm_linux_virtual_machine.vm.admin_username
+}
+
+# Contraseña del usuario administrador de la VM
+output "vm_admin_password" {
+  description = "Contraseña del usuario administrador de la maquina virtual. Este valor es sensible."
+  value       = azurerm_linux_virtual_machine.vm.admin_password
+  sensitive   = true
+}
 
 # IP publica de la VM
 output "ip_publica_vm" {
