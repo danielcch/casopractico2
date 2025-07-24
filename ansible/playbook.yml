@@ -1,6 +1,6 @@
 ---
 - hosts: localhost
-  gather_facts: no
+  gather_facts: false
   tasks:
     - name: Login to ACR with Podman locally
       containers.podman.podman_login:
@@ -17,7 +17,7 @@
         - name: "{{ image_nginx }}"
         - name: "{{ image_front }}"
         - name: "{{ image_back }}"
-      become: no
+      become: false
     
     - name: Tag image for ACR
       containers.podman.podman_tag:
@@ -28,7 +28,7 @@
         - {name: "{{ image_nginx }}",opt: caso1, id: nginx, tag: "{{ tag }}"}
         - {name: "{{ image_front }}",opt: caso2, id: front,tag: "{{ tag }}"}
         - {name: "{{ image_front }}",opt: caso2, id: backend, tag: "{{ tag }}"}
-      become: no
+      become: false
 
 
     - name: Push image to ACR
@@ -41,12 +41,19 @@
         - {name: "{{ image_nginx }}", opt: caso1, id: nginx, tag: "{{ tag }}"}
         - {name: "{{ image_front }}", opt: caso2, id: front, tag: "{{ tag }}"}
         - {name: "{{ image_back }}", opt: caso2, id: backend, tag: "{{ tag }}"}
-      become: no
+      become: false
 
 
 - hosts: [cp2Caso1]
-  become: yes
+  become: true
   tasks:
+    - name: Login to ACR desde root para systemd
+      containers.podman.podman_login:
+        registry: "{{ acr_login_server }}"
+        username: "{{ acr_admin_username }}"
+        password: "{{ acr_admin_password }}"
+      become: true
+
     - name: Install dependencies for Podman repo
       ansible.builtin.apt:
         name:
@@ -74,22 +81,24 @@
         name: podman
         state: present
 
-    - name: Login to ACR from the VM (user context)
-      containers.podman.podman_login:
-        registry: "{{ acr_login_server }}"
-        username: "{{ acr_admin_username }}"
-        password: "{{ acr_admin_password }}"
-      become: no
-
     - name: Pull nginx image from ACR (guaranteed amd64)
       containers.podman.podman_image:
         name: "{{ acr_login_server }}/caso1/nginx:casopractico2"
         state: present
-      become: no
+        username: "{{ acr_admin_username }}"
+        password: "{{ acr_admin_password }}"
+      become: true
+
+    - name: Ensure html directory exists
+      ansible.builtin.file:
+        path: "/home/{{ user_vm }}/html"
+        state: directory
+        owner: "{{ user_vm }}"
+        mode: "0755"
 
     - name: Create custom index.html
       ansible.builtin.copy:
-        dest: "/home/{{ user_vm }}/index.html"
+        dest: "/home/{{ user_vm }}/html/index.html"
         content: |
           <html>
           <head><title>Nginx Caso 1</title></head>
@@ -102,10 +111,10 @@
       containers.podman.podman_container:
         name: nginx-web
         state: absent
-      ignore_errors: yes
-      become: no
+      ignore_errors: true
+      become: false
 
-    - name: Run nginx container
+    - name: Crear y arrancar contenedor nginx-web
       containers.podman.podman_container:
         name: nginx-web
         image: "{{ acr_login_server }}/caso1/nginx:casopractico2"
@@ -116,35 +125,16 @@
         ports:
           - "8080:80"
         volumes:
-          - "/home/{{ user_vm }}/index.html:/usr/share/nginx/html/index.html:ro"
-        command: ["nginx", "-g", "daemon off;"]
-      become: no
+          - "/home/{{ user_vm }}/html:/usr/share/nginx/html:ro"
+      become: false
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/1000"
 
 
-    - name: Crear archivo systemd para nginx-web
-      ansible.builtin.template:
-        src: nginx-web.service.j2
-        dest: /etc/systemd/system/nginx-web.service
-        owner: root
-        group: root
-        mode: 0644
-      become: yes
-
-    - name: Recargar systemd para detectar nuevo servicio
-      ansible.builtin.systemd:
-        daemon_reload: yes
-      become: yes
-
-    - name: Activar y arrancar nginx-web como servicio
-      ansible.builtin.systemd:
-        name: nginx-web.service
-        enabled: yes
-        state: restarted
-      become: yes
-
+      
 - hosts: localhost
   connection: local
-  gather_facts: no
+  gather_facts: false
   vars:
     aks_resource_group: "{{ lookup('pipe', 'terraform -chdir=../terraform output -raw aks_resource_group') }}"
     aks_cluster_name: "{{ lookup('pipe', 'terraform -chdir=../terraform output -raw aks_cluster_name') }}"
