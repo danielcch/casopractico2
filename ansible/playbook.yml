@@ -47,12 +47,6 @@
 - hosts: [cp2Caso1]
   become: true
   tasks:
-    - name: Login to ACR desde root para systemd
-      containers.podman.podman_login:
-        registry: "{{ acr_login_server }}"
-        username: "{{ acr_admin_username }}"
-        password: "{{ acr_admin_password }}"
-      become: true
 
     - name: Install dependencies for Podman repo
       ansible.builtin.apt:
@@ -80,6 +74,13 @@
       ansible.builtin.apt:
         name: podman
         state: present
+
+    - name: Login to ACR
+      containers.podman.podman_login:
+        registry: "{{ acr_login_server }}"
+        username: "{{ acr_admin_username }}"
+        password: "{{ acr_admin_password }}"
+      become: false
 
     - name: Pull nginx image from ACR (guaranteed amd64)
       containers.podman.podman_image:
@@ -135,10 +136,6 @@
 - hosts: localhost
   connection: local
   gather_facts: false
-  vars:
-    aks_resource_group: "{{ lookup('pipe', 'terraform -chdir=../terraform output -raw aks_resource_group') }}"
-    aks_cluster_name: "{{ lookup('pipe', 'terraform -chdir=../terraform output -raw aks_cluster_name') }}"
-    aks_kubeconfig: "{{ lookup('pipe', 'terraform -chdir=../terraform output -raw aks_kubeconfig') }}"
   tasks:
     - name: Guardar kubeconfig generado por Terraform
       copy:
