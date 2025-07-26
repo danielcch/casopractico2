@@ -15,7 +15,7 @@ spec:
         app: backend
     spec:
       securityContext:
-        fsGroup: 1001
+        fsGroup: 0
       containers:
         - name: backend
           image: cp2acrdcch.azurecr.io/caso2/backend:casopractico2
@@ -29,7 +29,9 @@ spec:
             - name: redis-data
               mountPath: /bitnami/redis
           securityContext:
-            runAsUser: 1001
+            runAsUser: 0
+            capabilities:
+              add: ["SYS_ADMIN"]
       volumes:
         - name: redis-data
           persistentVolumeClaim:

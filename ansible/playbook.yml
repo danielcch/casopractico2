@@ -27,7 +27,7 @@
       loop:
         - {name: "{{ image_nginx }}",opt: caso1, id: nginx, tag: "{{ tag }}"}
         - {name: "{{ image_front }}",opt: caso2, id: front,tag: "{{ tag }}"}
-        - {name: "{{ image_front }}",opt: caso2, id: backend, tag: "{{ tag }}"}
+        - {name: "{{ image_back }}",opt: caso2, id: backend, tag: "{{ tag }}"}
       become: false
 
 
